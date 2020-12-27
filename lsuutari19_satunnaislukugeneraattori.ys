@@ -1,0 +1,128 @@
+# TKJ-harjoitustyö 2020: Satunnaislukugeneraattori
+# Lauri Suutari, 2633019, lsuutari19@student.oulu.fi
+#
+# Pohdinta:
+# - Ajonaikaisten käskyjen määrä: n. 50000, laskettu
+# iskemällä joka väliin +1 rsi rekisteriin. Uskon tämän olevan noin 2000-10000
+# vähemmän, koska tein pieniä korjauksia ettei sijoituksia tehtäisi turhaan
+# loopeissa.
+#-----------------------------------------------------------------------------
+# - Pullonkaula jakolaskussa, toteutuu aivan liian hitaasti,
+# jakojäännös voisi auttaa tämän jakolaskun tehostamisessa.
+#-----------------------------------------------------------------------------
+# - Tämän ohjelman olisi voinut toteuttaa optimisoidummin, nykyisellä
+# ratkaisulla ohjelma joutuu tekemään uusia sijoituksia rekistereihin kesken
+# ajon.
+#-----------------------------------------------------------------------------
+# - Työn rekisterien käyttö kannattaa suunnitella alusta alkaen paremmin, nyt on
+# joutunut käyttämään väliaikaisratkaisuja (esim. restart) bugeihin.
+#------------------------------------------------------------------------------
+# Ohjelman toiminta:
+# - Aluksi ohjelma saa syötteen taustajärjestelmältä, jonka se kertoo itsellään
+# ja sen jälkeen poistaa kaksi merkitsevintä lukua ja kaksi merkitsemättömintä
+# lukua. Tämän jälkeen se ottaa jäljelle jääneen luvun ja käyttää sitä seuraavan
+# luvun määrittämiseen. Kun 4 uutta lukua on generoitu, ohjelma päättää itsensä
+# poppaamalla pinosta luvut uusimmasta vanhimpaan järjestyksessä r10-r14
+# rekistereihin.
+
+# palautukseen kommentoitu ennen mainia olevat alustukset!
+#.pos 0x0
+#    irmovq Pino, %rbp
+#    irmovq Pino, %rsp
+#    irmovq $8147, %r8
+
+# tarvittavat alustuksen mainissa
+# mainiin ei palata ekan kierroksen jälkeen
+main:
+    irmovq $0, %r10             # nollalippu
+    irmovq $1, %r9              # vähentäjä
+    irmovq $3, %r12             # pinon tarkistelua varten
+    irmovq $100, %r13           # jakajana 100 (saadaan kaksi pienintä lukua pois)
+    pushq %r8                   # syöte pinon pohjalle
+    irmovq $1, %rdx
+    rrmovq %r8, %r11            # siirretään syöte vertailumuuttujaan
+    
+    jmp big_multiply
+    
+# tilapäismuuttuja potenssiin kerrotaan itsellään
+# shiftaukseen perustuva kertolasku
+big_multiply:
+    rrmovq %r9, %r14        # rekisterin 9 arvo tilapäismuuttujaan
+    andq %r11, %r14         # vertaa syötettä ja tilapäismuuttujaa
+    je shiftaus             # shiftaa kun ZF = 1
+    addq %r8, %rax          # lisää raxiin kerrottua lukua
+
+shiftaus:
+    rrmovq %rdi, %r10         
+    addq %r9, %r9           # kerrotaan r9 itsellään 
+    addq %r8, %r8           # kerrotaan r8 itsellään
+    subq %r9, %r10          # r10 - r9 kunnes SF^OF 
+    jl big_multiply         
+    rrmovq %rax, %rcx       # kertolasku suoritettu
+    rrmovq %rcx, %r14       # siirretään uuteen rekisteriin tulo
+    irmovq $1, %r9          # vähentäjän arvo takaisin 1
+    irmovq $10000000, %rdx  # vakio 10^7 seuraavaa funktiota varten
+    irmovq $0, %r10         # nollalippu takaisin 0
+    jmp msb_separation
+
+# poistaa merkitsevimmän numeron
+msb_separation:
+    subq %rdx, %rcx         # vähennetään 10^7 niin kauan, että msb<0
+    subq %r10, %rcx         # zeroflag testi
+    jg msb_separation
+    addq %rdx, %rcx         # lisätään yksi 10^7 ettei rcx ole negatiivinen
+    irmovq $1000000, %rbx   # vakio 10^6 seuraavaa funktiota varten
+    jmp msbtwo_separation   # msb poistettu siirrytään poistamaan
+
+# poistaa toisiksi merkitsevimmän numeron
+msbtwo_separation:
+    subq %rbx, %rcx         # vähennetään 10^6 niin kauan, että msb-1<0
+    subq %r10, %rcx         # zeroflag testi
+    jg msbtwo_separation
+    addq %rbx, %rcx         # lisätään 10^6 ettei rcx ole negatiivinen
+    rrmovq %rcx, %r14
+    irmovq $0, %r8          # sijoitus 0
+    jmp lsb_separation      # siirrytään poistamaan alkupään numerot
+
+# harjoitus tehtävien jakolaskulla saadaan helpoiten lsb:t
+# tämä on kuitenkin melko hidas jakolasku
+lsb_separation:
+   addq %r9, %r8            
+   subq %r13, %rcx
+   jg lsb_separation        # while rcx > rdx
+   subq %r9,%rcx                       
+   subq %r9, %r8
+   jmp stack_operation      
+
+# tämä funktio vain siirtää saadut syötteet pinoon
+stack_operation:
+    pushq %r8
+    subq %r9, %r12          # laskuri pinoon pushaamiselle  
+    subq %r10, %r12         # zeroflag testi
+    jge restart                 
+    popq %r10               # lopuksi vielä "tulostetaan"...
+    popq %r11               # ...pinon arvot rekistereihin r10-r14
+    popq %r12               # ...alku syöte r14, seuraava r13... jne
+    popq %r13
+    popq %r14
+    halt
+
+# tarvittavat alustukset seuraavaan kierrokseen
+restart:
+    rrmovq %r8, %r11        # uusi syöte
+    irmovq $0, %rax
+    irmovq $0, %rcx
+    irmovq $0, %rdx
+    irmovq $0, %rbx
+    irmovq $0, %r14
+    jmp big_multiply
+
+.pos 0x1000
+Pino:
+
+
+
+
+
+
+
