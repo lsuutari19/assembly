@@ -1,0 +1,24 @@
+irmovq $61440, %r8
+irmovq $4095, %r9
+irmovq $0, %r12       #ZF
+irmovq $40962, %r13   #test
+irmovq $-1, %rcx      #counter
+irmovq $1, %rdx
+
+main:
+    rrmovq %r13, %r14
+    andq %r9, %r13
+    andq %r8, %r14
+    rrmovq %r14, %rax
+    jmp luup
+
+luup:
+    addq %rdx, %rcx
+    rrmovq %rcx, %rbx
+    subq %r9, %rax
+    rrmovq %rax, %rsi
+    subq %rbx, %rsi
+    jge luup
+    rrmovq %rbx, %r14
+    halt
+    

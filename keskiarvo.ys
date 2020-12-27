@@ -1,0 +1,25 @@
+irmovq $0,%r8
+irmovq $-1,%rax
+irmovq $1,%r9
+irmovq $0,%r10
+irmovq $0,%rsi
+irmovq $0, %rdi
+irmovq $1, %rdx
+
+main:
+    popq %rcx
+    addq %rcx,%r8
+    subq %rdi,%rcx
+    je jako
+    addq %r9,%r10
+    jmp main
+    
+jako:
+    addq %rdx,%rax
+    subq %r10,%r8
+    jge jako
+    halt
+  
+.pos 0x400
+pino:
+

@@ -1,0 +1,21 @@
+.pos 0
+lasku:
+    irmovq $0,%r12
+    irmovq $8,%r9
+    irmovq $1,%r10
+    irmovq 0x400, %rsi
+    irmovq $0,%rax
+
+
+laskuloop:
+    mrmovq (%rsi),%r14  #siirretään muistista rekisteriin
+    subq %r12, %r14     #vähennetään rekisteristä
+    je main             #jos ZF=1 ehto toteutuu -> main
+    addq %r9,%rsi	#jos ei toteudu, jatketaan kunnes toteutuu
+    addq %r10,%rax
+    jmp laskuloop
+
+main:
+   halt
+    
+   

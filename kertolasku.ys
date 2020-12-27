@@ -1,0 +1,8 @@
+main:
+   irmovq $1,%rbp
+   irmovq $0,%rsp
+   addq %rsi,%rax
+   subq %rbp,%rdi
+   jg main
+halt   
+   
