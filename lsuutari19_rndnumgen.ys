@@ -1,0 +1,170 @@
+# TKJ-harjoitustyö 2020: Satunnaislukugeneraattori
+# Lauri Suutari, 2633019, lsuutari19@student.oulu.fi
+#
+# Pohdinta:
+# - Ajonaikaisten käskyjen määrä: noin 5000, arvioitu siitä, että
+# tarkistin lopettaa tiettyjen lukujen kohdalla noin 3000 käskyn jälkeen,
+# mutta rekisterien muutokset ovat viimeistä vaille oikein, joten arvioin että
+# maksimissaan 2000 käskyn jälkeen ne olisivat oikein.
+#-----------------------------------------------------------------------------
+# - Alunperin jakolasku oli pullonkaula, mutta uudella toteutuksella sekin toimi
+# tyydyttävän hyvin. Tätä voisi kuitenkin vielä nopeuttaa esim. jakojäännöksellä
+#-----------------------------------------------------------------------------
+# - Tämän ohjelman olisi voinut toteuttaa optimisoidummin, nykyisellä
+# ratkaisulla ohjelma joutuu tekemään uusia sijoituksia rekistereihin kesken
+# ajon.
+#-----------------------------------------------------------------------------
+# - Työn rekisterien käyttö kannattaa suunnitella alusta alkaen paremmin, nyt on
+# joutunut käyttämään väliaikaisratkaisuja (esim. restart) bugeihin.
+#------------------------------------------------------------------------------
+# Ohjelman toiminta:
+# - Aluksi ohjelma saa syötteen taustajärjestelmältä, jonka se kertoo itsellään
+# ja sen jälkeen poistaa kaksi merkitsevintä lukua ja kaksi merkitsemättömintä
+# lukua. Tämän jälkeen se ottaa jäljelle jääneen luvun ja käyttää sitä seuraavan
+# luvun määrittämiseen. Kun 4 uutta lukua on generoitu, ohjelma päättää itsensä
+# poppaamalla pinosta luvut uusimmasta vanhimpaan järjestyksessä r10-r14
+# rekistereihin.
+
+# palautukseen kommentoitu ennen mainia olevat alustukset!
+#.pos 0x0
+#    irmovq Pino, %rbp
+#    irmovq Pino, %rsp
+#    irmovq $8147, %r8
+
+# tarvittavat alustuksen mainissa
+# mainiin ei palata ekan kierroksen jälkeen
+main:
+    irmovq $0, %r10             # nollalippu
+    irmovq $1, %r9              # vähentäjä
+    irmovq $4, %r12             # pinon tarkistelua varten
+    irmovq $100, %r13           # jakajana 100 (saadaan kaksi pienintä lukua pois)
+#    pushq %r8                   # syöte pinon pohjalle
+    irmovq $1, %rdx
+    rrmovq %r8, %r11            # siirretään syöte vertailumuuttujaan
+    
+    jmp big_multiply
+    
+# tilapäismuuttuja potenssiin kerrotaan itsellään
+# shiftaukseen perustuva kertolasku
+big_multiply:
+    rrmovq %r9, %r14        # rekisterin 9 arvo tilapäismuuttujaan
+    andq %r11, %r14         # vertaa syötettä ja tilapäismuuttujaa
+    je shiftaus             # shiftaa kun ZF = 1
+    addq %r8, %rax          # lisää raxiin kerrottua lukua
+
+    shiftaus:
+        rrmovq %rdi, %r10         
+        addq %r9, %r9           # kerrotaan r9 itsellään 
+        addq %r8, %r8           # kerrotaan r8 itsellään
+        subq %r9, %r10          # r10 - r9 kunnes SF^OF 
+        jl big_multiply         
+        rrmovq %rax, %rcx       # kertolasku suoritettu
+        rrmovq %rcx, %r14       # siirretään uuteen rekisteriin tulo
+        irmovq $1, %r9          # vähentäjän arvo takaisin 1
+        irmovq $10000000, %rdx  # vakio 10^7 seuraavaa funktiota varten
+        irmovq $0, %r10         # nollalippu takaisin 0
+        jmp msb_separation
+
+# poistaa merkitsevimmän numeron
+msb_separation:
+    subq %rdx, %rcx         # vähennetään 10^7 niin kauan, että msb<0
+    subq %r10, %rcx         # zeroflag testi
+    jg msb_separation
+    addq %rdx, %rcx         # lisätään yksi 10^7 ettei rcx ole negatiivinen
+    irmovq $1000000, %rbx   # vakio 10^6 seuraavaa funktiota varten
+    jmp msbtwo_separation   # msb poistettu siirrytään poistamaan
+
+    # poistaa toisiksi merkitsevimmän numeron
+    msbtwo_separation:
+        subq %rbx, %rcx         # vähennetään 10^6 niin kauan, että msb-1<0
+        subq %r10, %rcx         # zeroflag testi
+        jg msbtwo_separation
+        addq %rbx, %rcx         # lisätään 10^6 ettei rcx ole negatiivinen
+        rrmovq %rcx, %r14
+        irmovq $0, %r8          # sijoitus 0
+        irmovq $100000, %rsi
+        irmovq $1000, %rdi
+        jmp big_lsb_separation  # siirrytään poistamaan alkupään numerot
+
+
+# nopeampi jakolasku kuin aiemmin (tuli pahimmillaan 9k käskyjä aiemmin)
+# Perustuu vain suurimmasta merkitsevästä numerosta poistamiseen ja
+# sen laskemiseen kuinka monta siitä saadaan poistettua ennen kuin se on
+# pienempää kuin 0. Tekee tämän arvoilla 100000, 10000, 1000, 100.
+big_lsb_separation:
+    addq %rdi, %r8      # lisää 1000 --> r8
+    rrmovq %rcx, %r13   # rcx arvo talteen tilapäismuuttujaan
+    subq %rsi, %rcx
+    jg big_lsb_separation
+    subq %rdi, %r8
+    irmovq $10000, %rsi
+    irmovq $100, %rdi
+    rrmovq %r13, %rcx   # saadaan ennen rcx < 0 takaisin
+    irmovq $0, %r13
+    jmp med_lsb_separation
+    
+    med_lsb_separation:
+        addq %rdi, %r8      # lisää 100 --> r8
+        rrmovq %rcx, %r13   # rcx arvo talteen tilapäismuuttujaan
+        subq %rsi, %rcx
+        jg med_lsb_separation
+        subq %rdi, %r8
+        irmovq $1000, %rsi
+        irmovq $10, %rdi
+        rrmovq %r13, %rcx   # saadaan ennen rcx < 0 takaisin
+        irmovq $0, %r13
+        jmp lsb_separation
+        
+        lsb_separation:
+            addq %rdi, %r8      # lisää 10 --> r8
+            rrmovq %rcx, %r13   # rcx arvo talteen tilapäismuuttujaan
+            subq %rsi, %rcx
+            jg lsb_separation
+            subq %rdi, %r8
+            irmovq $100, %rsi
+            irmovq $1, %rdi
+            rrmovq %r13, %rcx   # saadaan ennen rcx < 0 takaisin
+            irmovq $0, %r13
+            jmp small_lsb_separation
+            
+            small_lsb_separation:
+                addq %rdi, %r8      # lisää 1 --> r8
+                rrmovq %rcx, %r13   # rcx arvo talteen tilapäismuuttujaan
+                subq %rsi, %rcx
+                jg small_lsb_separation
+                subq %rdi, %r8      # r8 kaksi pienintä lukua poistettu
+                jmp stack_operation
+
+
+# tämä funktio vain siirtää saadut syötteet pinoon
+stack_operation:
+    pushq %r8
+    subq %r9, %r12          # laskuri pinoon pushaamiselle  
+    subq %r10, %r12         # zeroflag testi
+    jge restart                 
+    popq %r10               # lopuksi vielä "tulostetaan"...
+    popq %r11               # ...pinon arvot rekistereihin r10-r14
+    popq %r12               # ...alku syöte r14, seuraava r13... jne
+    popq %r13
+    popq %r14
+    halt
+
+    # tarvittavat alustukset seuraavaan kierrokseen
+    restart:
+        rrmovq %r8, %r11        # uusi syöte
+        irmovq $0, %rax
+        irmovq $0, %rcx
+        irmovq $0, %rdx
+        irmovq $0, %rbx
+        irmovq $0, %r14
+        jmp big_multiply
+
+.pos 0x1000
+Pino:
+
+
+
+
+
+
+
